@@ -15,6 +15,9 @@ class UserRole(Enum): #Solo se pueden usar los roles que pongamos aquí
     SELLER = 'seller'
     GARAGE = 'garage'
 
+
+
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
@@ -30,11 +33,15 @@ class User(db.Model):
 
     products = db.relationship('Product', backref='user') # Un usuario puede tener muchos productos asociados (relación de 1 a muchos)
     favorites = db.relationship('Favorites', backref='user') # Un usuario puede tener muchos favoritos asociados (relación de 1 a muchos)
+    sales = db.relationship('Sale', backref='user', foreign_keys='Sale.buyer_id') # Un usuario puede buscar buscar las ventas que hizo (1 a muchos)
 
-    seller_reviews = db.relationship('Review', backref='seller_id') # Preguntar a profes si és una relación recíproca (puedo ver las reseñas que me han puesto y las que he puesto)
-    buyer_reviews = db.relationship('Review', backref='buyer_id') # Preguntar a profes si és una relación recíproca (puedo ver las reseñas que me han puesto y las que he puesto)
+    
 
-    sales = db.relationship('Sale', backref='user') # Un usuario puede buscar buscar las ventas que hizo (1 a muchos)
+
+
+    # seller_reviews = db.relationship('Review', backref='user') # Preguntar a profes si és una relación recíproca (puedo ver las reseñas que me han puesto y las que he puesto)
+    # buyer_reviews = db.relationship('Review', backref='user') # Preguntar a profes si és una relación recíproca (puedo ver las reseñas que me han puesto y las que he puesto)
+
 
     def __repr__(self):
         return f'<User {self.email}>'
@@ -55,6 +62,8 @@ class User(db.Model):
         }
     
 
+
+    
 
 
 class Favorites(db.Model):
@@ -78,6 +87,13 @@ class ProductState(Enum):
     NUEVO = 'nuevo'
     SEMINUEVO = 'seminuevo'
 
+class fuel_type(Enum):
+    DIESEL = 'diesel'
+    GASOLINA = 'gasolina'
+    HIBRIDO = 'hibrido'
+    ELECTRICO = 'electrico'
+    
+
 
 class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -85,13 +101,15 @@ class Product(db.Model):
     state = db.Column(db.Enum(ProductState), nullable=False)
     price = db.Column(db.Float, nullable=False) #Estuve leyendo y cuando no quieres un número de decimales exactos el FLOAT es buena opción
     description = db.Column(db.String(2000))
-    image_id = db.Column(db.Integer, db.ForeignKey('image.id')) 
+    
     year = db.Column(db.Integer)
     km = db.Column(db.Integer)
-    fuel = db.Column(db.Integer)
+    fuel = db.Column(db.Enum(fuel_type))
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     brand_id = db.Column(db.Integer, db.ForeignKey('brand.id'))
     model_id = db.Column(db.Integer, db.ForeignKey('model.id'))
+
+    images = db.relationship('Image', backref='product')
 
     def __repr__(self):
         return f'<Products {self.id}>'
@@ -103,7 +121,7 @@ class Product(db.Model):
             "state": self.state,
             "price": self.price,
             "description": self.description,
-            "images": self.images,
+            "images": self.image,
             "year": self.year,
             "km": self.km,
             "fuel": self.fuel,
@@ -134,13 +152,14 @@ class Garage (db.Model):
             "product_id": self.product_id,
             "user_id": self.user_id
         }
-    
+
+
 class Image (db.Model): # Duda. No sé si debería ir también un relationship de esta tabla en users
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     image = db.Column(db.String(200), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'))
-    garage_id = db.Column(db.Integer, db.ForeignKey('garage.id'))
+    
 
     def __repr__(self):
         return f'<Images {self.id}>'
@@ -152,6 +171,8 @@ class Image (db.Model): # Duda. No sé si debería ir también un relationship d
             "image": self.image,
             "product_id": self.product_id
         }
+    
+
     
 class Service (db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -184,13 +205,19 @@ class Rating(Enum):
     
 class Review(db.Model): # Cambiar la tabla para que se pueda asociar al comrpador y al vendedor
     id = db.Column(db.Integer, primary_key=True)
-    buyer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    seller_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    given_review_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    recived_review_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
     stars = db.Column(db.Enum(Rating), nullable=False) # Revisar Enum con los profes
     comment = db.Column(db.String(250), nullable=True)
 
-    #GPT DICE QUE AÑADA ESTO PORQUE SINÓ PUEDE CREAR CONFUSI
+    given = db.relationship('User', foreign_keys=[given_review_id])
+    recived = db.relationship('User', foreign_keys=[recived_review_id])
+
+
+    
+
+    #GPT DICE QUE AÑADA ESTO PORQUE SINÓ PUEDE CREAR CONFUSIÓN
     # buyer = db.relationship('User', foreign_keys=[buyer_id], backref='buyer_reviews')
     # seller = db.relationship('User', foreign_keys=[seller_id], backref='seller_reviews')
 
@@ -212,8 +239,9 @@ class Sale(db.Model):
     buyer_id = db.Column(db.Integer, db.ForeignKey('user.id')) 
     seller_id = db.Column(db.Integer, db.ForeignKey('user.id')) 
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'))
-    garage_id = db.Column(db.Integer, db.ForeignKey('taller.id'))
+    garage_id = db.Column(db.Integer, db.ForeignKey('garage.id'))
     fecha = db.Column(db.DateTime, nullable=False, default=datetime.now(spain_tz))
+    #Posibilidad de añadir reviews en la tabla
 
     def __repr__(self):
         return f'<Sales {self.id}>'
@@ -232,7 +260,7 @@ class Brand(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
 
-    models = db.relationship('Model', backref='brands') # Podemos acceder a modelos asociados a una marca 
+    # models = db.relationship('Model', backref='brands') # Podemos acceder a modelos asociados a una marca 
 
     def __repr__(self):
         return f'<Brands {self.id}>'
